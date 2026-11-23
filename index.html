@@ -9,17 +9,31 @@
 <meta name="description" content="Hasta dónde llegó la lista de interinos de educación de Castilla y León cada semana, por especialidad y provincia, y qué plazas se adjudicaron.">
 <link rel="icon" href="logo.png">
 <style>
+/* ===========================================================================
+   Las nueve provincias son la estructura real de todo esto: cada plaza esta
+   en una, cada persona se apunta a unas cuantas. Por eso el color no decora,
+   informa: el mismo tono identifica a Burgos en el mapa, en la tabla y en la
+   pastilla de localidad. El granate y el oro vienen del escudo.
+   =========================================================================== */
 :root{
-  --marca:#7a1f2b; --marca-2:#9c3340; --oro:#c8922a;
-  --fondo:#f5f6f8; --papel:#fff; --tinta:#161a1f; --suave:#5d6773;
-  --linea:#e2e6eb; --chip:#eef1f5;
-  --ok:#17764a; --medio:#9a6508; --bajo:#962626;
-  --ancho:980px;
+  --marca:#7a1f2b; --marca-2:#9c3340; --oro:#a87722;
+  --fondo:#fbf9f5; --papel:#fff; --tinta:#1a1714; --suave:#6b645c;
+  --linea:#e7e1d6; --chip:#f2eee6; --realce:#faf6ee;
+  --ok:#17684a; --medio:#8a5d0c; --bajo:#8e2626;
+  --ancho:1020px;
+  --serif:Georgia,"Iowan Old Style","Palatino Linotype",Palatino,"Times New Roman",serif;
+  /* Avila, Burgos, Leon, Palencia, Salamanca, Segovia, Soria, Valladolid, Zamora */
+  --p05:#8c2f3d; --p09:#b14a32; --p24:#b8860b; --p34:#2f6b4f; --p37:#1f4e79;
+  --p40:#6f4a93; --p42:#c25b2a; --p47:#167a6b; --p49:#5a6470;
 }
 @media (prefers-color-scheme: dark){
-  :root{--fondo:#13161a; --papel:#1b1f25; --tinta:#e8ebee; --suave:#9aa5b1;
-        --linea:#2a3038; --chip:#232931; --marca:#c05464; --marca-2:#d4697a;
-        --ok:#4cc38a; --medio:#e0a93c; --bajo:#e0706f;}
+  :root{--fondo:#15130f; --papel:#1e1b16; --tinta:#ece7de; --suave:#a49c90;
+        --linea:#312c24; --chip:#272319; --realce:#241f17;
+        --marca:#d2707e; --marca-2:#e0828f; --oro:#d9a845;
+        --ok:#4cc38a; --medio:#e0a93c; --bajo:#e0706f;
+        --p05:#d4737f; --p09:#e08a6e; --p24:#dcb54a; --p34:#5fa684;
+        --p37:#5f93c4; --p40:#a98ac9; --p42:#e3906a; --p47:#4fb8a6;
+        --p49:#97a2b0;}
 }
 *{box-sizing:border-box}
 body{margin:0;background:var(--fondo);color:var(--tinta);
@@ -29,58 +43,94 @@ a{color:var(--marca)}
 .saltar{position:absolute;left:-9999px}
 .saltar:focus{left:8px;top:8px;background:var(--papel);padding:8px 12px;
   border-radius:8px;z-index:10}
+:focus-visible{outline:2px solid var(--marca);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 
+/* --- cabecera: una banda granate fina la ancla sin ocupar sitio --- */
 header{background:var(--papel);border-bottom:1px solid var(--linea);
-  position:sticky;top:0;z-index:5}
-.marca{max-width:var(--ancho);margin:0 auto;padding:11px 16px;display:flex;
-  align-items:center;gap:11px}
-.marca img{width:38px;height:38px;object-fit:contain}
-.marca b{font-size:1.1rem;font-weight:700;letter-spacing:-.01em;display:block}
+  position:sticky;top:0;z-index:5;
+  box-shadow:0 1px 0 rgba(0,0,0,.02)}
+/* Una banda de colores por provincia quedaba vistosa, pero arriba del todo
+   es lo primero que se ve y no dice nada: decoracion. El color se gana el
+   sitio donde informa, en los puntos de localidad y en el mapa. */
+header::before{content:"";display:block;height:3px;background:var(--marca)}
+.marca{max-width:var(--ancho);margin:0 auto;padding:12px 16px;display:flex;
+  align-items:center;gap:12px}
+.marca img{width:40px;height:40px;object-fit:contain}
+.marca b{font:600 1.22rem/1.15 var(--serif);letter-spacing:-.005em;display:block}
 .marca b i{font-style:normal;color:var(--marca)}
-.marca span{font-size:.78rem;color:var(--suave)}
+.marca span{font-size:.79rem;color:var(--suave)}
 nav{max-width:var(--ancho);margin:0 auto;padding:0 8px;display:flex;gap:2px;
   overflow-x:auto;scrollbar-width:none}
 nav::-webkit-scrollbar{display:none}
-nav a{flex:0 0 auto;padding:10px 13px;font-size:.88rem;font-weight:600;
+nav a{flex:0 0 auto;padding:9px 13px 11px;font-size:.89rem;font-weight:600;
   color:var(--suave);text-decoration:none;border-bottom:2.5px solid transparent;
   white-space:nowrap}
+nav a:hover{color:var(--tinta)}
 nav a.activo{color:var(--marca);border-bottom-color:var(--marca)}
 
-main{max-width:var(--ancho);margin:0 auto;padding:18px 16px 40px}
-h1{font-size:1.2rem;margin:0 0 3px}
-.sub{color:var(--suave);font-size:.87rem;margin:0 0 18px}
-.caja{background:var(--papel);border:1px solid var(--linea);border-radius:13px;
-  padding:16px;margin-bottom:14px}
-.caja h2{font-size:.95rem;margin:0 0 12px}
-.filtros{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:16px}
-.filtros>div{flex:1 1 150px}
-label{display:block;font-size:.74rem;font-weight:600;color:var(--suave);
-  margin-bottom:4px;text-transform:uppercase;letter-spacing:.03em}
+main{max-width:var(--ancho);margin:0 auto;padding:22px 16px 40px}
+h1{font:600 1.55rem/1.2 var(--serif);margin:0 0 4px;letter-spacing:-.01em}
+.sub{color:var(--suave);font-size:.88rem;margin:0 0 20px}
+.caja{background:var(--papel);border:1px solid var(--linea);border-radius:12px;
+  padding:16px;margin-bottom:16px}
+.caja h2{font:600 1.02rem/1.3 var(--serif);margin:0 0 12px}
+.caja.plana{background:none;border:0;padding:0}
+
+/* --- filtros: etiqueta en minuscula, que no grite --- */
+.filtros{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:18px}
+.filtros>div{flex:1 1 160px}
+label{display:block;font-size:.78rem;font-weight:600;color:var(--suave);
+  margin-bottom:5px}
 select,input{width:100%;padding:9px 10px;border:1px solid var(--linea);
-  border-radius:9px;font-size:.92rem;background:var(--papel);color:var(--tinta)}
+  border-radius:8px;font-size:.92rem;background:var(--papel);color:var(--tinta)}
 select:focus,input:focus{outline:2px solid var(--marca);outline-offset:1px}
-.btn{background:var(--marca);color:#fff;border:0;border-radius:9px;
+.btn{background:var(--marca);color:#fff;border:0;border-radius:8px;
   padding:10px 18px;font-size:.92rem;font-weight:600;cursor:pointer}
 .btn:hover{background:var(--marca-2)} .btn:disabled{opacity:.55;cursor:default}
 .btn.sec{background:transparent;color:var(--marca);border:1px solid var(--marca)}
 
-.cifras{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:11px}
-.cifra{background:var(--chip);border-radius:11px;padding:13px}
-.cifra .n{font-size:1.6rem;font-weight:700;line-height:1.1;letter-spacing:-.02em}
-.cifra .t{font-size:.76rem;color:var(--suave);margin-top:3px}
+/* --- el dato manda: una cifra grande y las demas a su lado, no tres iguales --- */
+.titular{background:var(--papel);border:1px solid var(--linea);border-radius:12px;
+  padding:18px 20px;margin-bottom:16px;display:flex;flex-wrap:wrap;
+  align-items:baseline;gap:10px 30px;border-left:4px solid var(--marca)}
+.titular .grande{font:600 2.9rem/1 var(--serif);letter-spacing:-.025em;
+  color:var(--marca);font-variant-numeric:tabular-nums}
+.titular .pie{font-size:.9rem;color:var(--suave);flex:1 1 140px}
+.cifras{display:flex;flex-wrap:wrap;gap:8px 28px;align-items:baseline}
+.cifra .n{font:600 1.45rem/1.1 var(--serif);letter-spacing:-.015em;
+  font-variant-numeric:tabular-nums}
+.cifra .t{font-size:.79rem;color:var(--suave)}
 .alto .n{color:var(--ok)} .medio .n{color:var(--medio)} .bajo .n{color:var(--bajo)}
 
-table{width:100%;border-collapse:collapse;font-size:.87rem}
-th,td{text-align:right;padding:8px 7px;border-bottom:1px solid var(--linea)}
+/* --- tablas: sin caja, con aire; los numeros alineados de verdad --- */
+table{width:100%;border-collapse:collapse;font-size:.88rem}
+th,td{text-align:right;padding:9px 8px;border-bottom:1px solid var(--linea)}
 th:first-child,td:first-child,th.izq,td.izq{text-align:left}
-th{font-size:.72rem;text-transform:uppercase;letter-spacing:.03em;
-  color:var(--suave);font-weight:600;position:sticky;top:0;background:var(--papel)}
-tbody tr:hover{background:var(--chip)}
+th{font-size:.78rem;color:var(--suave);font-weight:600;
+  position:sticky;top:0;background:var(--papel);
+  border-bottom:1px solid var(--tinta)}
+td.num,th.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+tbody tr:hover{background:var(--realce)}
+tbody tr:last-child td{border-bottom:0}
 .scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
-.etq{display:inline-block;font-size:.7rem;padding:1px 7px;border-radius:99px;
+.centro{font-weight:600}
+
+/* --- pastilla de localidad, con el color de su provincia --- */
+.loc{display:inline-flex;align-items:center;gap:5px;font-size:.78rem;
+  color:var(--suave);white-space:nowrap}
+.loc::before{content:"";width:7px;height:7px;border-radius:50%;
+  background:var(--pc,var(--suave));flex:0 0 auto}
+.p05{--pc:var(--p05)} .p09{--pc:var(--p09)} .p24{--pc:var(--p24)}
+.p34{--pc:var(--p34)} .p37{--pc:var(--p37)} .p40{--pc:var(--p40)}
+.p42{--pc:var(--p42)} .p47{--pc:var(--p47)} .p49{--pc:var(--p49)}
+
+.etq{display:inline-block;font-size:.72rem;padding:1px 8px;border-radius:99px;
   background:var(--chip);color:var(--suave);margin-left:5px}
-.etq.si{background:rgba(23,118,74,.13);color:var(--ok)}
-.etq.no{background:rgba(150,38,38,.13);color:var(--bajo)}
+.etq.si{background:rgba(23,104,74,.12);color:var(--ok)}
+.etq.no{background:rgba(142,38,38,.12);color:var(--bajo)}
+.etq.oro{background:rgba(168,119,34,.14);color:var(--medio)}
+
 
 /* El plano viene con su propio estilo claro. En modo oscuro se baja el brillo
    de las teselas y se adapta el globo de informacion, o deslumbra. */
@@ -89,7 +139,7 @@ tbody tr:hover{background:var(--chip)}
   .leaflet-popup-content-wrapper,.leaflet-popup-tip{
     background:var(--papel);color:var(--tinta)}
   .leaflet-container .leaflet-control-attribution{
-    background:rgba(27,31,37,.82);color:var(--suave)}
+    background:rgba(30,27,22,.85);color:var(--suave)}
   .leaflet-container .leaflet-control-attribution a{color:var(--marca-2)}
   .leaflet-bar a{background:var(--papel);color:var(--tinta);
     border-bottom-color:var(--linea)}
@@ -97,19 +147,25 @@ tbody tr:hover{background:var(--chip)}
 .leaflet-popup-content{font-size:.86rem;line-height:1.45}
 .leaflet-container{font:inherit}
 
-.cargando,.vacio{color:var(--suave);font-size:.9rem;padding:22px 0;text-align:center}
-.error{background:rgba(150,38,38,.1);border:1px solid rgba(150,38,38,.3);
-  color:var(--bajo);border-radius:10px;padding:12px 14px;font-size:.88rem;margin-bottom:14px}
-.pista{font-size:.82rem;color:var(--suave);margin-top:12px;padding-top:11px;
+.cargando,.vacio{color:var(--suave);font-size:.9rem;padding:26px 0;text-align:center}
+.error{background:rgba(142,38,38,.08);border:1px solid rgba(142,38,38,.28);
+  color:var(--bajo);border-radius:10px;padding:12px 14px;font-size:.88rem;
+  margin-bottom:14px}
+.pista{font-size:.82rem;color:var(--suave);margin-top:14px;padding-top:12px;
   border-top:1px solid var(--linea)}
 
-.legal{background:var(--papel);border:1px solid var(--linea);border-radius:13px;
-  padding:15px;font-size:.8rem;color:var(--suave);line-height:1.5}
+.legal{background:var(--chip);border:1px solid var(--linea);border-radius:12px;
+  padding:15px 17px;font-size:.81rem;color:var(--suave);line-height:1.55}
 .legal strong{color:var(--tinta)}
 .legal ul{margin:9px 0 0;padding-left:18px}
-footer{max-width:var(--ancho);margin:0 auto;padding:16px;font-size:.8rem;
+footer{max-width:var(--ancho);margin:0 auto;padding:16px;font-size:.81rem;
   color:var(--suave);display:flex;gap:16px;flex-wrap:wrap}
-@media(max-width:560px){.cifra .n{font-size:1.4rem}}
+@media(max-width:560px){
+  h1{font-size:1.35rem}
+  .titular{padding:15px 16px;gap:8px 20px}
+  .titular .grande{font-size:2.3rem}
+  .cifras{gap:6px 20px}
+}
 </style>
 </head>
 <body>
@@ -246,6 +302,45 @@ function cargando(t='Cargando…') { pinta(`<div class="cargando">${t}</div>`); 
 function fallo(e) {
   pinta(`<div class="error"><strong>No he podido cargar los datos.</strong><br>${esc(e.message)}</div>`);
 }
+// Los PDF vienen TODO EN MAYUSCULAS. Leerlos asi cansa y parece que gritan,
+// asi que se pasan a capital solo la inicial, dejando en paz las siglas y las
+// palabras de enlace. Si el texto ya venia bien escrito, no se toca.
+const SIGLAS = new Set(['CEIP','IES','IESO','CRA','EOI','CEE','CIFP','CEA',
+  'CEPA','ESO','FP','FPB','CEIPSO','SIET','CP','CFIE','EI','ETS','UNED','CEO']);
+const ENLACES = new Set(['de','del','la','las','los','el','y','e','o','u','en',
+  'a','al','con','por','para','san','sta']);
+function titulo(t) {
+  t = (t || '').trim();
+  if (!t || t !== t.toUpperCase()) return t;      // ya venia escrito normal
+  let primera = true, traSigla = false;
+  return t.toLowerCase().split(/(\s+|\/|-)/).map(pal => {
+    if (!/[a-záéíóúüñ]/i.test(pal)) return pal;   // espacios, guiones, simbolos
+    const arriba = pal.toUpperCase().replace(/\./g, '');
+    if (SIGLAS.has(arriba)) { primera = false; traSigla = true;
+                              return pal.toUpperCase(); }
+    // «IES EL CID»: el «el» va tras la sigla, o sea que abre el nombre propio
+    // y lleva mayuscula; el de «Miranda de Ebro» no.
+    const abre = primera || traSigla;
+    primera = false; traSigla = false;
+    if (!abre && ENLACES.has(pal)) return pal;
+    return pal.charAt(0).toUpperCase() + pal.slice(1);
+  }).join('');
+}
+// Pastilla de localidad con el color de su provincia.
+const PROV_COD = ['05','09','24','34','37','40','42','47','49'];
+// En las plazas la provincia viene como codigo y en el directorio de centros
+// como nombre; esto traduce lo segundo a lo primero.
+const PROV_NOM = {'AVILA':'05','ÁVILA':'05','BURGOS':'09','LEON':'24','LEÓN':'24',
+  'PALENCIA':'34','SALAMANCA':'37','SEGOVIA':'40','SORIA':'42',
+  'VALLADOLID':'47','ZAMORA':'49'};
+const codProv = v => PROV_COD.includes(String(v)) ? String(v)
+  : (PROV_NOM[String(v || '').toUpperCase()] || '');
+function pastilla(localidad, prov) {
+  if (!localidad) return '';
+  const c = PROV_COD.includes(String(prov)) ? ' p' + prov : '';
+  return `<span class="loc${c}">${esc(titulo(localidad))}</span>`;
+}
+
 const nombreEsp = (lista, c, s) =>
   (lista.find(x => x.cuerpo === c && x.especialidad === s) || {}).nombre || s;
 
@@ -277,7 +372,7 @@ async function vistaSemana() {
     ${filtros()}
     <div id="resumen"></div>
     <div class="caja"><h2>Por especialidad</h2>
-      <div class="scroll"><table>
+      <div class="scroll"><table class="num-tab">
         <thead><tr><th>Especialidad</th><th>Plazas</th><th>Hasta la nota</th>
           <th>Pidieron sin plaza</th></tr></thead>
         <tbody id="tb"></tbody></table></div>
@@ -305,16 +400,27 @@ async function vistaSemana() {
     const total = lista.reduce((s, x) => s + x.plazas, 0);
     const acred = lista.reduce((s, x) => s + x.acr, 0);
 
-    $('#resumen').innerHTML = `<div class="caja"><div class="cifras">
-      <div class="cifra"><div class="n">${n(total)}</div><div class="t">plazas adjudicadas</div></div>
-      <div class="cifra"><div class="n">${n(lista.length)}</div><div class="t">especialidades con plaza</div></div>
-      <div class="cifra"><div class="n">${n(acred)}</div><div class="t">de sección bilingüe</div></div>
+    const corte = lista.reduce((m, x) =>
+      x.min != null && (m === null || x.min < m) ? x.min : m, null);
+    $('#resumen').innerHTML = `<div class="titular">
+      <div>
+        <div class="grande">${n(total)}</div>
+        <div class="pie">plazas adjudicadas</div>
+      </div>
+      <div class="cifras">
+        <div class="cifra"><div class="n">${n(lista.length)}</div>
+          <div class="t">especialidades</div></div>
+        <div class="cifra"><div class="n">${corte === null ? '—' : n3(corte)}</div>
+          <div class="t">nota más baja que cogió</div></div>
+        <div class="cifra"><div class="n">${n(acred)}</div>
+          <div class="t">de sección bilingüe</div></div>
       </div></div>`;
 
     $('#tb').innerHTML = lista.length ? lista.map(x =>
-      `<tr><td>${esc(nombreEsp(esp, x.c, x.s))}
+      `<tr><td><span class="centro">${esc(titulo(nombreEsp(esp, x.c, x.s)))}</span>
          <span class="etq">${CUERPO[x.c] || x.c}</span></td>
-       <td>${n(x.plazas)}</td><td>${n3(x.min)}</td><td>${n(x.sin)}</td></tr>`).join('')
+       <td class="num">${n(x.plazas)}</td><td class="num">${n3(x.min)}</td>
+       <td class="num">${n(x.sin)}</td></tr>`).join('')
       : '<tr><td colspan="4" class="vacio">Sin plazas con esos filtros.</td></tr>';
   }
   $('#f-ambito').onchange = $('#f-prov').onchange = refrescar;
@@ -337,11 +443,13 @@ async function vistaHistorico() {
     ${filtros({extra: `<div><label for="f-esp">Especialidad</label>
       <select id="f-esp">${conDatos.map(e =>
         `<option value="${e.cuerpo}|${e.especialidad}"${
-          e === porDefecto ? ' selected' : ''}>${esc(e.nombre)}</option>`).join('')}
+          e === porDefecto ? ' selected' : ''}>${esc(titulo(e.nombre))}</option>`).join('')}
       </select></div>`})}
     <div class="caja"><div class="scroll"><table>
-      <thead><tr><th>Semana</th><th>Plazas</th><th>Hasta la nota</th>
-        <th>Nota más alta</th><th>Pidieron sin plaza</th></tr></thead>
+      <thead><tr><th class="izq">Semana</th><th class="num">Plazas</th>
+        <th class="num">Hasta la nota</th>
+        <th class="num">Nota más alta</th>
+        <th class="num">Pidieron sin plaza</th></tr></thead>
       <tbody id="tb"></tbody></table></div></div>`);
 
   async function refrescar() {
@@ -361,10 +469,16 @@ async function vistaHistorico() {
       porFecha.set(x.fecha, o);
     }
     const fechas = [...porFecha.keys()].sort().reverse();
+    // Aquí hubo una barra proporcional. No servía: la adjudicación de inicio
+    // de curso mueve cientos de plazas y deja las semanas normales en un
+    // punto invisible. Una escala logarítmica se vería bien pero mentiría
+    // sobre la proporción, así que mejor los números solos.
     $('#tb').innerHTML = fechas.length ? fechas.map(f => {
       const o = porFecha.get(f);
-      return `<tr><td>${fecha(f)}</td><td>${n(o.plazas)}</td><td>${n3(o.min)}</td>
-        <td>${n3(o.max)}</td><td>${n(o.sin)}</td></tr>`;
+      return `<tr><td class="izq">${fecha(f)}</td>
+        <td class="num">${n(o.plazas)}</td>
+        <td class="num">${n3(o.min)}</td>
+        <td class="num">${n3(o.max)}</td><td class="num">${n(o.sin)}</td></tr>`;
     }).join('') : '<tr><td colspan="5" class="vacio">Sin datos con esos filtros.</td></tr>';
   }
   // el selector de cuerpo filtra la lista de especialidades
@@ -372,7 +486,7 @@ async function vistaHistorico() {
     const a = $('#f-ambito').value;
     const l = conDatos.filter(e => !a || e.ambito === a);
     $('#f-esp').innerHTML = l.map(e =>
-      `<option value="${e.cuerpo}|${e.especialidad}">${esc(e.nombre)}</option>`).join('');
+      `<option value="${e.cuerpo}|${e.especialidad}">${esc(titulo(e.nombre))}</option>`).join('');
     refrescar();
   };
   $('#f-prov').onchange = $('#f-esp').onchange = refrescar;
@@ -397,8 +511,8 @@ async function vistaPlazas() {
       <option value="si">Adjudicadas</option></select></div>`})}
     <div id="resumen"></div>
     <div class="caja"><div class="scroll"><table>
-      <thead><tr><th>Especialidad</th><th class="izq">Centro</th><th>Hasta</th>
-        <th>Tipo</th><th></th></tr></thead>
+      <thead><tr><th class="izq">Especialidad</th><th class="izq">Centro</th>
+        <th class="num">Hasta</th><th class="izq">Tipo</th><th></th></tr></thead>
       <tbody id="tb"></tbody></table></div>
       <p class="pista">Las sustituciones se piden una a una: si no la pides, no te
         la dan aunque tengas más nota. Las que quedan sin cubrir son las que nadie pidió.</p>
@@ -412,19 +526,26 @@ async function vistaPlazas() {
       '&order=especialidad_nombre.asc&limit=600');
     if (!vigente(yo)) return;
     const sin = filas.filter(x => x.adjudicada === false).length;
-    $('#resumen').innerHTML = `<div class="caja"><div class="cifras">
-      <div class="cifra"><div class="n">${n(filas.length)}</div><div class="t">plazas ofertadas</div></div>
-      <div class="cifra ${sin ? 'medio' : 'alto'}"><div class="n">${n(sin)}</div>
-        <div class="t">se quedaron sin cubrir</div></div>
-      <div class="cifra"><div class="n">${n(new Set(filas.map(x => x.localidad)).size)}</div>
-        <div class="t">localidades</div></div></div></div>`;
+    $('#resumen').innerHTML = `<div class="titular">
+      <div>
+        <div class="grande">${n(filas.length)}</div>
+        <div class="pie">plazas ofertadas</div>
+      </div>
+      <div class="cifras">
+        <div class="cifra ${sin ? 'medio' : 'alto'}"><div class="n">${n(sin)}</div>
+          <div class="t">se quedaron sin cubrir</div></div>
+        <div class="cifra"><div class="n">${
+          n(new Set(filas.map(x => x.localidad)).size)}</div>
+          <div class="t">localidades</div></div>
+      </div></div>`;
 
     $('#tb').innerHTML = filas.length ? filas.slice(0, 300).map(x =>
-      `<tr><td>${esc(x.especialidad_nombre || x.especialidad)}</td>
-        <td class="izq">${esc(x.centro || '')}<br><span class="etq">${esc(x.localidad || '')}</span></td>
-        <td>${x.fecha_fin ? fecha(x.fecha_fin) : '—'}</td>
-        <td>${esc(x.tipo || 'Ordinaria')}${x.acreditacion
-          ? `<span class="etq">${esc(x.acreditacion.toLowerCase())}</span>` : ''}</td>
+      `<tr><td class="izq">${esc(titulo(x.especialidad_nombre || x.especialidad))}</td>
+        <td class="izq"><span class="centro">${esc(titulo(x.centro || ''))}</span><br>${
+          pastilla(x.localidad, x.provincia)}</td>
+        <td class="num">${x.fecha_fin ? fecha(x.fecha_fin) : '—'}</td>
+        <td class="izq">${esc(titulo(x.tipo || 'Ordinaria'))}${x.acreditacion
+          ? `<span class="etq oro">${esc(x.acreditacion.toLowerCase())}</span>` : ''}</td>
         <td><span class="etq ${x.adjudicada ? 'si' : 'no'}">${
           x.adjudicada ? 'adjudicada' : 'sin cubrir'}</span></td></tr>`).join('')
       : '<tr><td colspan="5" class="vacio">Sin plazas con esos filtros.</td></tr>';
@@ -493,7 +614,7 @@ async function vistaMapa() {
       <div><label for="m-esp">Especialidad</label><select id="m-esp">
         <option value="">Todas</option>
         ${esp.map(e => `<option value="${e.cuerpo}|${e.especialidad}">${
-          esc(e.nombre)} · ${e.ambito === 'MAESTROS' ? 'Maestros' : 'Secundaria'
+          esc(titulo(e.nombre))} · ${e.ambito === 'MAESTROS' ? 'Maestros' : 'Secundaria'
           }</option>`).join('')}
       </select></div>
       <div><label for="m-cuando">Cuándo</label><select id="m-cuando">
@@ -654,11 +775,12 @@ function pintarLista(filas, casa, totalPlazas) {
         <th>Plazas</th>${casa ? '<th>Distancia</th>' : ''}
       </tr></thead>
       <tbody>${filas.slice(0, 200).map(f => `<tr>
-        <td class="izq">${esc(f.c.nombre_plaza || f.c.nombre)}${
+        <td class="izq"><span class="centro">${
+          esc(titulo(f.c.nombre_plaza || f.c.nombre))}</span>${
           f.c.exactitud !== 'centro' ? '<span class="etq">aprox.</span>' : ''}</td>
-        <td class="izq">${esc(f.c.localidad || '')}</td>
-        <td>${n(f.plazas.length)}</td>
-        ${casa ? `<td>${f.km} km</td>` : ''}</tr>`).join('')}</tbody>
+        <td class="izq">${pastilla(f.c.localidad, codProv(f.c.provincia))}</td>
+        <td class="num">${n(f.plazas.length)}</td>
+        ${casa ? `<td class="num">${f.km} km</td>` : ''}</tr>`).join('')}</tbody>
     </table></div>
     <p class="pista">${n(totalPlazas)} plaza${totalPlazas === 1 ? '' : 's'} en
       ${n(filas.length)} centro${filas.length === 1 ? '' : 's'}.
