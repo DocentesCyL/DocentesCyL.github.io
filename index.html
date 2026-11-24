@@ -249,6 +249,73 @@ async function api(ruta, extra) {
   return r.json();
 }
 
+// ---------------------------------------------------------------------------
+// Sesión. Se habla con Supabase Auth por HTTP directamente: son cuatro
+// llamadas y así no hay que cargar la biblioteca entera para esto.
+// El testigo se guarda en el navegador, no en ningún servidor nuestro.
+// ---------------------------------------------------------------------------
+const LLAVE_SESION = 'cyl_sesion';
+let SESION = null;
+try { SESION = JSON.parse(localStorage.getItem(LLAVE_SESION) || 'null'); }
+catch (e) { SESION = null; }
+
+function guardarSesion(s) {
+  SESION = s;
+  try {
+    if (s) localStorage.setItem(LLAVE_SESION, JSON.stringify(s));
+    else localStorage.removeItem(LLAVE_SESION);
+  } catch (e) { /* navegador sin almacenamiento: la sesión dura lo que la pestaña */ }
+}
+
+async function auth(camino, cuerpo) {
+  const r = await fetch(`${SUPABASE_URL}/auth/v1/${camino}`, {
+    method: 'POST',
+    headers: {apikey: CLAVE_PUBLICA, 'Content-Type': 'application/json'},
+    body: JSON.stringify(cuerpo)
+  });
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(mensajeAuth(d, r.status));
+  return d;
+}
+
+// Los mensajes de Auth vienen en inglés y de poco sirven al que los lee.
+function mensajeAuth(d, estado) {
+  const t = (d.error_description || d.msg || d.message || '').toLowerCase();
+  if (t.includes('invalid login')) return 'El correo o la contraseña no son correctos.';
+  if (t.includes('already registered')) return 'Ya hay una cuenta con ese correo. Entra en vez de registrarte.';
+  if (t.includes('password') && t.includes('6')) return 'La contraseña necesita al menos 6 caracteres.';
+  if (t.includes('email') && t.includes('invalid')) return 'Ese correo no parece válido.';
+  if (t.includes('confirm')) return 'Falta confirmar el correo. Mira tu bandeja de entrada.';
+  if (estado === 429) return 'Demasiados intentos seguidos. Espera un minuto.';
+  return d.error_description || d.msg || d.message || 'No se ha podido completar.';
+}
+
+// Llamada a la API con la sesión del usuario, no con la clave pública.
+async function apiYo(ruta, opciones = {}) {
+  if (!SESION) throw new Error('Sin sesión');
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/${ruta}`, {
+    ...opciones,
+    headers: {apikey: CLAVE_PUBLICA,
+              Authorization: `Bearer ${SESION.access_token}`,
+              'Accept-Profile': 'cyl', 'Content-Profile': 'cyl',
+              'Content-Type': 'application/json', ...(opciones.headers || {})}
+  });
+  if (r.status === 401) {                 // el testigo ha caducado
+    guardarSesion(null);
+    throw new Error('Se ha cerrado la sesión. Vuelve a entrar.');
+  }
+  if (!r.ok) throw new Error(`${r.status} · ${(await r.text()).slice(0, 160)}`);
+  return r.status === 204 ? null : r.json();
+}
+
+// El nombre se compara con el de los listados, que van en mayúsculas y sin
+// acentos. Se normaliza igual a los dos lados para que "Martínez" encuentre
+// a "MARTINEZ".
+function normalizarNombre(t) {
+  return (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .toUpperCase().replace(/\s+/g, ' ').trim();
+}
+
 // PostgREST corta en 1.000 filas por defecto. Hay tablas con mas (los centros
 // son 1.065), asi que se piden por tramos hasta que deje de devolver.
 async function apiTodo(ruta, tramo = 1000) {
@@ -800,24 +867,251 @@ function pintarLista(filas, casa, totalPlazas) {
 // MI SEGUIMIENTO  (pendiente de las cuentas)
 // ===========================================================================
 async function vistaYo() {
-  pinta(`<h1>Mi seguimiento</h1>
-    <p class="sub">Tu posición y tus posibilidades, sin tener que mirar los PDF.</p>
-    <div class="caja">
-      <h2>En construcción</h2>
-      <p style="font-size:.92rem;color:var(--suave)">
-        Cuando esté listo, te registras una vez con tu correo, indicas tu nombre
-        tal y como aparece en los listados y dónde vives, y a partir de ahí entras
-        y ves directamente:</p>
-      <ul style="font-size:.92rem;color:var(--suave);margin:0 0 4px;padding-left:19px">
-        <li>en qué puesto estás en cada una de tus listas;</li>
-        <li>cuánta gente con más nota pidió plaza esta semana;</li>
-        <li>cuántas plazas habrías podido coger y con qué frecuencia salen;</li>
-        <li>las plazas de la semana ordenadas por distancia desde tu casa.</li>
-      </ul>
-      <p class="pista">Tu nombre se usa solo para encontrarte en los listados y
-        nunca se muestra en la web, ni el tuyo ni el de nadie.</p>
-    </div>`);
+  const yo = NAV;
+  if (!SESION) return pantallaEntrar();
+  cargando();
+  let perfil = null;
+  try {
+    const r = await apiYo('perfil?select=*&limit=1');
+    perfil = r && r[0] ? r[0] : null;
+  } catch (e) {
+    if (!vigente(yo)) return;
+    return pantallaEntrar(e.message);
+  }
+  if (!vigente(yo)) return;
+  return perfil ? pantallaSituacion(perfil) : pantallaVincular();
 }
+
+// --- entrar o registrarse --------------------------------------------------
+function pantallaEntrar(aviso) {
+  pinta(`<h1>Mi seguimiento</h1>
+    <p class="sub">Tu puesto y tus posibilidades, sin abrir un solo PDF.</p>
+    ${aviso ? `<div class="error">${esc(aviso)}</div>` : ''}
+    <div class="caja" style="max-width:420px">
+      <h2 id="t-acc">Entrar</h2>
+      <div style="margin-bottom:12px">
+        <label for="correo">Correo</label>
+        <input id="correo" type="email" autocomplete="email" inputmode="email">
+      </div>
+      <div style="margin-bottom:14px">
+        <label for="clave">Contraseña</label>
+        <input id="clave" type="password" autocomplete="current-password">
+      </div>
+      <button class="btn" id="b-entrar">Entrar</button>
+      <button class="btn sec" id="b-registro" style="margin-left:8px">
+        Crear cuenta</button>
+      <p class="pista" id="p-acc">¿Primera vez? Crea una cuenta: solo hace falta
+        un correo y una contraseña.</p>
+    </div>`);
+  let modo = 'entrar';
+  const err = t => { const c = $('#p-acc'); if (c) c.innerHTML =
+    `<span style="color:var(--bajo)">${esc(t)}</span>`; };
+  const trabajando = b => { $('#b-entrar').disabled = b;
+                            $('#b-registro').disabled = b; };
+
+  async function enviar() {
+    const correo = $('#correo').value.trim(), clave = $('#clave').value;
+    if (!correo || !clave) return err('Pon el correo y la contraseña.');
+    trabajando(true);
+    try {
+      const d = await auth(modo === 'entrar'
+        ? 'token?grant_type=password' : 'signup', {email: correo, password: clave});
+      if (d.access_token) { guardarSesion(d); return ir(); }
+      // Si el proyecto pide confirmar el correo, no llega testigo todavía.
+      err('Cuenta creada. Confirma el correo y vuelve a entrar.');
+      modo = 'entrar';
+    } catch (e) {
+      err(e.message);
+    } finally { trabajando(false); }
+  }
+  $('#b-entrar').onclick = () => { modo = 'entrar'; enviar(); };
+  $('#b-registro').onclick = () => { modo = 'registro'; enviar(); };
+  $('#clave').onkeydown = e => { if (e.key === 'Enter') { modo = 'entrar'; enviar(); } };
+}
+
+// --- decir quién eres ------------------------------------------------------
+async function pantallaVincular(aviso) {
+  const yo = NAV;
+  const esp = await cacheado('esp', () =>
+    apiTodo('especialidad?select=cuerpo,especialidad,nombre,ambito&order=nombre'));
+  if (!vigente(yo)) return;
+  pinta(`<h1>Dinos quién eres</h1>
+    <p class="sub">Para encontrarte en los listados. Es una sola vez.</p>
+    ${aviso ? `<div class="error">${esc(aviso)}</div>` : ''}
+    <div class="caja" style="max-width:520px">
+      <div style="margin-bottom:12px">
+        <label for="v-nombre">Tu nombre, igual que en los listados</label>
+        <input id="v-nombre" placeholder="APELLIDO APELLIDO, NOMBRE"
+               autocomplete="off">
+        <p class="pista" style="border:0;padding:0;margin-top:6px">
+          Primero los apellidos y después el nombre, separados por una coma.
+          Las tildes y las mayúsculas dan igual.</p>
+      </div>
+      <div style="margin-bottom:12px">
+        <label for="v-esp">Tu especialidad</label>
+        <select id="v-esp">
+          <option value="">— elige —</option>
+          ${esp.map(e => `<option value="${e.cuerpo}|${e.especialidad}">${
+            esc(titulo(e.nombre))} · ${
+            e.ambito === 'MAESTROS' ? 'Maestros' : 'Secundaria'}</option>`).join('')}
+        </select>
+      </div>
+      <div style="margin-bottom:14px">
+        <label for="v-muni">Dónde vives <span style="font-weight:400">(opcional)</span></label>
+        <select id="v-muni"><option value="">— sin indicar —</option></select>
+        <p class="pista" style="border:0;padding:0;margin-top:6px">
+          Solo sirve para ordenar las plazas por distancia.</p>
+      </div>
+      <button class="btn" id="b-buscar">Buscarme</button>
+      <p class="pista" id="p-vinc">Si tienes varias especialidades, elige una
+        ahora; luego se pueden añadir más.</p>
+    </div>`);
+
+  const cen = await centros();
+  if (!vigente(yo)) return;
+  const muni = new Map();
+  for (const c of cen.values()) {
+    if (!c.municipio || c.lat == null) continue;
+    const k = `${c.municipio} (${c.provincia})`;
+    if (!muni.has(k)) muni.set(k, {lat: +c.lat, lon: +c.lon});
+  }
+  for (const k of [...muni.keys()].sort((a, b) => a.localeCompare(b, 'es')))
+    $('#v-muni').append(Object.assign(document.createElement('option'),
+                                      {value: k, textContent: k}));
+
+  const nota = (t, mal) => { const c = $('#p-vinc'); if (c) c.innerHTML =
+    mal ? `<span style="color:var(--bajo)">${esc(t)}</span>` : esc(t); };
+
+  $('#b-buscar').onclick = async () => {
+    const nombre = normalizarNombre($('#v-nombre').value);
+    const [cu, es] = ($('#v-esp').value || '|').split('|');
+    if (!nombre) return nota('Escribe tu nombre.', true);
+    if (!cu) return nota('Elige tu especialidad.', true);
+    $('#b-buscar').disabled = true;
+    nota('Buscando…');
+    try {
+      const r = await apiYo('rpc/buscar_persona', {
+        method: 'POST',
+        body: JSON.stringify({p_nombre: nombre, p_cuerpo: cu, p_especialidad: es})
+      });
+      if (!r || !r.length) {
+        nota('No apareces en esa lista con ese nombre. Mira cómo está escrito '
+           + 'en el listado oficial: primero los apellidos, luego una coma y '
+           + 'el nombre.', true);
+        return;
+      }
+      if (r.length > 1) {
+        nota('Hay más de una persona con ese nombre en esa especialidad. '
+           + 'Escríbenos y lo resolvemos a mano.', true);
+        return;
+      }
+      const m = muni.get($('#v-muni').value) || null;
+      await apiYo('perfil', {
+        method: 'POST',
+        headers: {Prefer: 'resolution=merge-duplicates'},
+        body: JSON.stringify({usuario: SESION.user.id, nombre_norm: nombre,
+          cuerpo: cu, especialidad: es,
+          municipio: $('#v-muni').value || null,
+          lat: m ? m.lat : null, lon: m ? m.lon : null,
+          actualizado: new Date().toISOString()})
+      });
+      ir();
+    } catch (e) {
+      nota(e.message, true);
+    } finally {
+      const b = $('#b-buscar'); if (b) b.disabled = false;
+    }
+  };
+}
+
+// --- tu situación ----------------------------------------------------------
+async function pantallaSituacion(perfil) {
+  const yo = NAV;
+  cargando();
+  const [esp, est] = await Promise.all([
+    cacheado('esp', () => apiTodo(
+      'especialidad?select=cuerpo,especialidad,nombre,ambito&order=nombre')),
+    api(`estado?select=*&cuerpo=eq.${perfil.cuerpo}` +
+        `&especialidad=eq.${perfil.especialidad}&limit=1`)
+  ]);
+  if (!vigente(yo)) return;
+  let mio;
+  try {
+    const r = await apiYo('rpc/buscar_persona', {
+      method: 'POST',
+      body: JSON.stringify({p_nombre: perfil.nombre_norm, p_cuerpo: perfil.cuerpo,
+                            p_especialidad: perfil.especialidad})
+    });
+    mio = r && r[0];
+  } catch (e) {
+    if (!vigente(yo)) return;
+    return pinta(`<h1>Mi seguimiento</h1>
+      <div class="error">${esc(e.message)}</div>
+      <button class="btn sec" onclick="salir()">Cerrar sesión</button>`);
+  }
+  if (!vigente(yo)) return;
+  if (!mio) {
+    return pinta(`<h1>Mi seguimiento</h1>
+      <div class="caja"><h2>Ya no apareces en esa lista</h2>
+      <p style="font-size:.92rem;color:var(--suave)">Puede que la lista se haya
+      renovado o que el nombre esté escrito de otra forma. Vuelve a decirnos
+      quién eres.</p>
+      <button class="btn" id="b-rehacer">Cambiar mis datos</button></div>`),
+      ($('#b-rehacer').onclick = () => pantallaVincular());
+  }
+
+  const nombreEspec = (esp.find(e => e.cuerpo === perfil.cuerpo
+    && e.especialidad === perfil.especialidad) || {}).nombre || perfil.especialidad;
+  const delante = mio.orden - 1;
+  const e0 = est && est[0];
+  const porSemana = e0 ? Number(e0.plazas_semana_max) : null;
+
+  pinta(`<h1>Mi seguimiento</h1>
+    <p class="sub">${esc(titulo(nombreEspec))}${
+      perfil.municipio ? ' · ' + esc(titulo(perfil.municipio)) : ''}</p>
+    <div class="titular">
+      <div>
+        <div class="grande">${n(mio.orden)}</div>
+        <div class="pie">tu puesto de ${n(mio.total)}</div>
+      </div>
+      <div class="cifras">
+        <div class="cifra"><div class="n">${n3(mio.puntos)}</div>
+          <div class="t">tus puntos</div></div>
+        <div class="cifra"><div class="n">${n(delante)}</div>
+          <div class="t">personas por delante</div></div>
+      </div>
+    </div>
+    <div class="caja">
+      <h2>Qué significa</h2>
+      <p style="font-size:.92rem;margin:0 0 10px">
+        Estás en el puesto ${n(mio.orden)} de ${n(mio.total)} en
+        ${esc(titulo(nombreEspec))}, con ${n3(mio.puntos)} puntos.
+        ${porSemana ? `En la semana que más se movió esta lista salieron
+          ${n(porSemana)} plazas.` : ''}</p>
+      <p class="pista" style="margin-top:0">La lista no se recorre de arriba
+        abajo: las sustituciones se piden una a una, así que tener gente delante
+        no impide coger plaza si esa gente no la pide. Mira la pestaña
+        Histórico para ver hasta qué nota llegó cada semana.</p>
+    </div>
+    <div class="caja">
+      <h2>Mis datos</h2>
+      <p style="font-size:.88rem;color:var(--suave);margin:0 0 12px">
+        Guardamos tu correo, el nombre con el que te buscamos y, si lo
+        indicaste, tu municipio. Nada más.</p>
+      <button class="btn sec" id="b-cambiar">Cambiar especialidad o municipio</button>
+      <button class="btn sec" id="b-salir" style="margin-left:8px">Cerrar sesión</button>
+      <p class="pista">¿El nombre está mal escrito en los listados oficiales?
+        Eso hay que corregirlo en la Junta; escríbenos y te decimos cómo.</p>
+    </div>`);
+  $('#b-cambiar').onclick = () => pantallaVincular();
+  $('#b-salir').onclick = () => salir();
+}
+
+function salir() {
+  guardarSesion(null);
+  ir();
+}
+
 
 // ===========================================================================
 async function vistaAyuda() {
