@@ -251,6 +251,27 @@ details.semanas summary{cursor:pointer;font-size:.86rem;color:var(--marca);
   font-size:1rem;line-height:1;padding:2px 6px;border-radius:99px}
 .chip button:hover{background:var(--linea);color:var(--tinta)}
 
+.hola-acc{display:flex;flex-direction:column;gap:7px;align-items:stretch}
+.aviso-inv{border-left:4px solid var(--oro);font-size:.9rem;max-width:520px}
+.aviso-pase{border-left:4px solid var(--marca);font-size:.9rem}
+.bloqueada .velo{position:relative;border-radius:10px;overflow:hidden;
+  border:1px solid var(--linea)}
+.bloqueada .relleno{filter:blur(5px);opacity:.55;padding:12px;pointer-events:none;
+  user-select:none}
+.relleno-barras{display:flex;align-items:flex-end;gap:4px;height:64px}
+.relleno-barras i{flex:1;background:var(--barra-si);border-radius:4px 4px 0 0}
+.candado{position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;text-align:center;gap:6px;
+  padding:16px;background:color-mix(in srgb, var(--papel) 55%, transparent)}
+.candado p{margin:0;font-size:.86rem;color:var(--suave);max-width:360px}
+.icono-candado{font-size:1.5rem;line-height:1}
+.invitar{border-left:4px solid var(--oro)}
+.conseguido{background:rgba(23,104,74,.1);color:var(--ok);border-radius:8px;
+  padding:8px 10px;font-size:.88rem;margin:0 0 10px}
+.progreso{display:flex;gap:6px}
+.progreso span{flex:1;height:8px;border-radius:4px;background:var(--linea)}
+.progreso span.si{background:var(--oro)}
+#i-enlace{font-size:.82rem}
 tr.destino td{background:rgba(168,119,34,.08)}
 
 .cargando,.vacio{color:var(--suave);font-size:.9rem;padding:26px 0;text-align:center}
@@ -1019,6 +1040,11 @@ function pintarLista(filas, casa, totalPlazas) {
 // La aplicación de adjudicaciones de la Junta, donde se piden las plazas.
 const EDUCACYL = 'https://aplicaciones.educa.jcyl.es/AEDO/login/1788_5947';
 const SEMANAS_GRAFICO = 15;
+const LLAVE_INVITACION = 'cyl_inv';
+const WEB = 'https://docentescyl.github.io/';
+const invitacionGuardada = () => {
+  try { return localStorage.getItem(LLAVE_INVITACION) || null; } catch (e) { return null; }
+};
 
 const rpc = (nombre, args) => apiYo(`rpc/${nombre}`,
   {method: 'POST', body: JSON.stringify(args || {})});
@@ -1089,6 +1115,8 @@ async function vistaYo() {
 function pantallaEntrar(aviso) {
   pinta(`<h1>Mi seguimiento</h1>
     <p class="sub">Tu puesto y tus posibilidades, sin abrir un solo PDF.</p>
+    ${invitacionGuardada() ? `<div class="caja aviso-inv">Te ha invitado un
+      compañero o compañera. Crea tu cuenta y quedará registrado.</div>` : ''}
     ${aviso ? `<div class="error">${esc(aviso)}</div>` : ''}
     <div class="caja" style="max-width:420px">
       <h2 id="t-acc">Entrar</h2>
@@ -1200,13 +1228,12 @@ async function pantallaVincular(aviso) {
       <p class="sub">Esto es lo que hay con ese nombre en los listados.</p>
       <div class="caja" style="max-width:580px">
         <div class="scroll"><table>
-          <thead><tr><th class="izq">Lista</th><th class="num">Puesto</th>
-            <th class="num">Puntos</th></tr></thead>
+          <thead><tr><th class="izq">Lista</th>
+            <th class="num">Personas en la lista</th></tr></thead>
           <tbody>${listas.map(l => `<tr>
             <td class="izq"><span class="centro">${esc(titulo(l.nombre))}</span>
               <span class="etq">${l.ambito === 'MAESTROS' ? 'Maestros' : 'Secundaria'}</span></td>
-            <td class="num">${n(l.orden)} de ${n(l.total)}</td>
-            <td class="num">${n3(l.puntos)}</td></tr>`).join('')}</tbody>
+            <td class="num">${n(l.total)}</td></tr>`).join('')}</tbody>
         </table></div>
         <p class="pista">Al confirmar, tu cuenta queda unida a este nombre. Si
           alguna lista no es tuya, puede haber alguien que se llama igual:
@@ -1221,7 +1248,9 @@ async function pantallaVincular(aviso) {
       const p = L2.muni.get(muni) || null;
       try {
         await rpc('vincular', {p_nombre: nombre, p_municipio: p ? muni : null,
-                               p_lat: p ? p.lat : null, p_lon: p ? p.lon : null});
+                               p_lat: p ? p.lat : null, p_lon: p ? p.lon : null,
+                               p_codigo: invitacionGuardada()});
+        try { localStorage.removeItem(LLAVE_INVITACION); } catch (e) {}
         ir();
       } catch (e) {
         if (e.hint === 'vinculado') return ir();
@@ -1393,20 +1422,99 @@ function tarjetaLista(l, r) {
   </section>`;
 }
 
+// --- sin pase: un adelanto con candado -------------------------------------
+// Se ve la lista y cuánta gente hay en ella; el resto va borroso. Lo borroso
+// es un dibujo de relleno, NO sus datos: el servidor ni siquiera los manda.
+function tarjetaBloqueada(l) {
+  return `<section class="caja lista bloqueada">
+    <div class="lista-cab">
+      <h2>${esc(titulo(l.nombre))}
+        <span class="etq">${l.ambito === 'MAESTROS' ? 'Maestros' : 'Secundaria'}</span></h2>
+    </div>
+    <p class="lista-pos">Estás en esta lista, con ${n(l.total)} personas${
+      l.fecha_listado ? ` <span class="suave">(lista del ${fechaLarga(l.fecha_listado)})</span>` : ''}.</p>
+    <div class="velo">
+      <div class="relleno" aria-hidden="true">
+        <p>Puesto <b>0000</b> de 0000 · 00,000 puntos · 0000 por delante</p>
+        <div class="prob media"><div class="prob-cab"><b>Media · 00 %</b>
+          <span>probabilidad de plaza a tu alcance la próxima semana</span></div>
+          <div class="prob-barra"><span style="width:45%"></span></div></div>
+        <div class="mini3"><div><div class="n">0 de 00</div></div>
+          <div><div class="n">00,0</div></div><div><div class="n">0,0</div></div></div>
+        <div class="relleno-barras">${[60, 30, 12, 8, 14, 6, 9, 11, 5, 7, 10, 4]
+          .map(h => `<i style="height:${h}px"></i>`).join('')}</div>
+      </div>
+      <div class="candado">
+        <div class="icono-candado" aria-hidden="true">🔒</div>
+        <b>Desbloquea tu seguimiento</b>
+        <p>Con el pase del curso ves tu puesto, cuánta gente tienes delante, tu
+          probabilidad de plaza y cómo ha ido cada semana.</p>
+        <a class="btn peq" href="#/ajustes">Quiero el pase</a>
+      </div>
+    </div>
+  </section>`;
+}
+
+// --- invitar ---------------------------------------------------------------
+function tarjetaInvitar(inv) {
+  const enlace = `${WEB}?inv=${encodeURIComponent(inv.codigo)}`;
+  const faltan = Math.max(0, 3 - inv.pagados);
+  const texto = 'Mira tu puesto en las listas de interinos de Castilla y León, ' +
+                'tu probabilidad de plaza y las adjudicaciones de cada semana: ';
+  return `<section class="caja invitar" id="invitar">
+    <h2>Invita y gana un curso gratis</h2>
+    ${inv.premiado
+      ? `<p class="conseguido"><b>¡Conseguido!</b> Tres personas a las que
+          invitaste tienen el pase: el curso que viene es gratis para ti.</p>`
+      : `<p style="margin:0 0 10px;font-size:.9rem">Si tres personas entran con
+          tu enlace y compran el pase, el curso que viene es gratis para ti.</p>`}
+    <div class="progreso" role="img" aria-label="${n(inv.pagados)} de 3">${[0, 1, 2]
+      .map(i => `<span class="${i < inv.pagados ? 'si' : ''}"></span>`).join('')}</div>
+    <p class="suave peq-txt" style="margin:6px 0 12px">${n(Math.min(inv.pagados, 3))} de 3
+      con pase${inv.invitados ? ` · ${n(inv.invitados)} se ${inv.invitados === 1
+        ? 'ha apuntado' : 'han apuntado'} con tu enlace` : ''}${!inv.premiado && faltan
+        ? ` · te falta${faltan === 1 ? '' : 'n'} ${n(faltan)}` : ''}</p>
+    <label for="i-enlace">Tu enlace</label>
+    <div class="fila-btn"><input id="i-enlace" readonly value="${esc(enlace)}">
+      <button class="btn peq" id="b-copiar">Copiar</button></div>
+    <div class="fila-btn">
+      <a class="btn sec peq" target="_blank" rel="noopener"
+         href="https://wa.me/?text=${encodeURIComponent(texto + enlace)}">Enviar por WhatsApp</a>
+      <a class="btn sec peq" target="_blank" rel="noopener"
+         href="https://t.me/share/url?url=${encodeURIComponent(enlace)}&text=${
+         encodeURIComponent(texto)}">Telegram</a>
+    </div>
+  </section>`;
+}
+
+function copiarEnlace() {
+  const i = $('#i-enlace'), b = $('#b-copiar');
+  if (!i) return;
+  const hecho = () => { if (b) { b.textContent = 'Copiado'; setTimeout(() => {
+    b.textContent = 'Copiar'; }, 2000); } };
+  if (navigator.clipboard && navigator.clipboard.writeText)
+    navigator.clipboard.writeText(i.value).then(hecho, () => { i.select(); });
+  else { i.select(); try { document.execCommand('copy'); hecho(); } catch (e) {} }
+}
+
 // --- el panel --------------------------------------------------------------
 async function pantallaPanel(perfil) {
   const yo = NAV;
   cargando();
-  const [listas, pases, admin, rondas, L, cen] = await Promise.all([
+  const [listas, pases, admin, rondas, L, cen, invs] = await Promise.all([
     rpc('mis_listas'),
     apiYo('pase?select=hasta,nota').catch(() => []),
     rpc('es_admin').catch(() => false),
     cacheado('rondas', () => apiTodo('ronda?select=ambito,fecha&order=fecha')),
     lugares(),
-    centros()
+    centros(),
+    rpc('mis_invitados').catch(() => [])
   ]);
   if (!vigente(yo)) return;
   const nom = partesNombre(perfil.nombre_norm);
+  // Sin pase el servidor devuelve las listas con el puesto en blanco.
+  const bloqueado = (listas || []).some(l => l.bloqueado);
+  const inv = (invs && invs[0]) || null;
   const hoy = new Date().toISOString().slice(0, 10);
   const pase = (pases || []).find(p => p.hasta >= hoy);
   const ocultas = new Set(perfil.ocultas || []);
@@ -1429,7 +1537,10 @@ async function pantallaPanel(perfil) {
         <div class="hola-chips">${(listas || []).map(l =>
           `<span class="etq">${esc(titulo(l.nombre))}</span>`).join('')}</div>
       </div>
-      <a class="btn" href="${EDUCACYL}" target="_blank" rel="noopener">Ir a EducaCyL</a>
+      <div class="hola-acc">
+        <a class="btn" href="${EDUCACYL}" target="_blank" rel="noopener">Ir a EducaCyL</a>
+        <button class="btn sec" id="b-ir-invitar">Invita y gana un curso</button>
+      </div>
     </div>
     <div class="sesion">
       <span>Sesión de <b>${esc((SESION.user && SESION.user.email) || '')}</b></span>
@@ -1439,6 +1550,13 @@ async function pantallaPanel(perfil) {
       ${admin ? '<a class="btn sec peq" href="#/admin">Administración</a>' : ''}
       <button class="btn sec peq" id="b-salir">Cerrar sesión</button>
     </div>
+    ${bloqueado ? `<div class="caja aviso-pase">
+      <b>Tu seguimiento está bloqueado.</b> Te hemos encontrado en ${n(listas.length)}
+      lista${listas.length === 1 ? '' : 's'}; para ver tu puesto y tus
+      posibilidades hace falta el pase del curso. Muy pronto se podrá comprar en
+      la app de Google Play. También puedes conseguirlo gratis
+      <button class="enlace" id="b-ir-invitar2">invitando a tres personas</button>.
+    </div>` : ''}
     ${!perfil.pasos_ocultos && hechos < pasos.length ? `<div class="caja pasos">
       <div class="lista-cab"><h2>Primeros pasos <span class="suave">${hechos} de ${
         pasos.length}</span></h2>
@@ -1453,6 +1571,7 @@ async function pantallaPanel(perfil) {
           : '<div class="caja"><div class="vacio">No tienes ninguna lista a la vista.</div></div>'}
       </div>
       <aside class="col-lat">
+        ${inv ? tarjetaInvitar(inv) : ''}
         <section class="caja"><h2>Mi casa</h2>
           <div id="casa-ver">${perfil.municipio
             ? `<b>${esc(perfil.municipio)}</b>` : '<span class="suave">Sin indicar</span>'}
@@ -1504,6 +1623,12 @@ async function pantallaPanel(perfil) {
     catch (e) { pinta(`<div class="error">${esc(e.message)}</div>`); }
   };
   $('#b-salir').onclick = salir;
+  const bi = $('#b-ir-invitar');
+  if (bi) bi.onclick = () => { const t = $('#invitar');
+    if (t) t.scrollIntoView({behavior: 'smooth', block: 'start'}); };
+  if ($('#b-copiar')) $('#b-copiar').onclick = copiarEnlace;
+  const bi2 = $('#b-ir-invitar2');
+  if (bi2) bi2.onclick = () => bi && bi.onclick();
   const bp = $('#b-pasos'); if (bp) bp.onclick = () => guardar({pasos_ocultos: true});
   $('#b-casa').onclick = () => { $('#casa-ver').hidden = true;
                                  $('#casa-editar').hidden = false; $('#i-casa').focus(); };
@@ -1536,6 +1661,7 @@ async function pantallaPanel(perfil) {
   // --- las tarjetas de cada lista, que necesitan más datos -----------------
   const porAmbito = a => rondas.filter(r => r.ambito === a).map(r => r.fecha);
   const tarjetas = await Promise.all(visibles.map(async l => {
+    if (l.bloqueado) return tarjetaBloqueada(l);
     const [filas, tab] = await Promise.all([
       apiTodo(`ronda_plazas?select=fecha,plazas,nota_minima&cuerpo=eq.${l.cuerpo}` +
               `&especialidad=eq.${l.especialidad}&order=fecha`),
@@ -1838,6 +1964,15 @@ if (CLAVE_PUBLICA.startsWith('PEGA_AQUI')) {
   pinta('<div class="error">Falta pegar la clave publishable de Supabase en ' +
         'index.html (línea con CLAVE_PUBLICA).</div>');
 } else {
+  // Quien llega con un enlace de invitación (?inv=CODIGO): se guarda el
+  // código hasta que se registre, y se le lleva directo a registrarse.
+  try {
+    const inv = new URLSearchParams(location.search).get('inv');
+    if (inv && /^[0-9A-Za-z]{4,12}$/.test(inv)) {
+      localStorage.setItem(LLAVE_INVITACION, inv.toUpperCase());
+      if (!location.hash) location.hash = '#/yo';
+    }
+  } catch (e) { /* sin almacenamiento: entra sin invitación */ }
   window.addEventListener('hashchange', ir);
   ir();
   pieDatos();
